@@ -11,10 +11,21 @@
 ; 42
 
 ; Note that it gives 42 and not 43.
-; The 
+; The assignment (set! a 43) happens during syntax expansion,
+; so the effect is gone, when the repl starts.
 
-#;(define-syntax (#%top-interaction stx)
+; We need to reinstate the value the first time an expression
+; is evaluated in the repl. #%top-interaction to the rescue...
+; The repl wraps each expression in #%top-interaction, so
+; we just need to redefined #%top-interaction.
+
+(begin-for-syntax
+  (define first-interaction? #t))
+
+(define-syntax (#%top-interaction stx)
   (syntax-case stx ()
     [(_ . expr)
-     (set! a 43)
+     (when first-interaction?
+       (set! a 43)
+       (set! first-interaction? #f))
      #'expr]))
