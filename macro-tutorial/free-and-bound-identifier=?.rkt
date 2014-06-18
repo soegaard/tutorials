@@ -31,3 +31,75 @@
 ;check for duplicates, etc, or for really odd macros that act kind of 
 ;like binding forms but don't use Racket's core binding forms to do it.
      
+
+; Ryan:
+
+; http://stackoverflow.com/questions/6801482/difference-between-free-identifier-and-bound-identifier
+
+(define-syntax (compare-with-x stx)
+  (syntax-case stx ()
+    [(_ y)
+     (with-syntax ([free=?  (free-identifier=?  #'x #'y )]
+                   [bound=? (bound-identifier=? #'x #'y )])
+       #'(list free=? bound=?))]))
+
+(compare-with-x x)  ;; => '(#t #f)
+(let ([x 42])
+  (compare-with-x x))  ;; => '(#f #f)
+
+; Operational explanation:
+;     The expander adds a mark to x before calling the macro transformer
+;     for compare-with-x. This means that y is bound to #'x with a mark on it.
+; Conceptual explanation:
+;     The #'x in the body of compare-with-x is ... Hmmm.
+
+
+; To show that the mark is the cause, we can add remove the mark with
+; syntax-local-introduce.
+
+(define-syntax (compare-with-x2 stx)
+  (syntax-case stx ()
+    [(_ y)
+     (with-syntax ([free=?  (free-identifier=?  #'x (syntax-local-introduce #'y))]
+                   [bound=? (bound-identifier=? #'x (syntax-local-introduce #'y))])
+       #'(list free=? bound=?))]))
+
+(compare-with-x2 x)     ;; => '(#t #t)
+
+(let ([x 42])
+  (compare-with-x2 x))  ;; => '(#f #f)
+      
+
+;;; From R6RS:
+; Id1 and id2 must be identifiers. The procedure bound-identifier=? returns #t 
+; if a binding for one would capture a reference to the other in the output of 
+; the transformer, assuming that the reference appears within the scope of the 
+; binding, and #f otherwise.
+
+; We can demonstrate this by introducing a binding for either x or y 
+; in the output:
+
+(define-syntax (compare-with-x3 stx)
+  (syntax-case stx ()
+    [(_ y)
+     #'(let ([x 42])    ; this x binds
+         (list x y))])) ; this x, but the x which y is bound to is not
+  
+; (compare-with-x3 x)  ;; x: unbound identifier in module in: x
+
+(define-syntax (compare-with-x4 stx)
+  (syntax-case stx ()
+    [(_ y)
+     #'(let ([y 42])    ; this y binds
+         (list x y))])) ; the original x, but not the x in here  <= error in this line
+
+; (compare-with-x4 x)
+
+
+
+
+
+
+
+
+
